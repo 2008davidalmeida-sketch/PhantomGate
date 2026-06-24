@@ -15,11 +15,11 @@ Connect to any machine and use it as if you were there.
 
 ## Build
 
-Navigate to the `src/` folder and compile:
+Navigate to the `src/` folder and compile all source files together:
 
 ```bash
 cd src
-gcc main.c -o rdp.exe -lgdi32
+gcc main.c capture.c -o rdp.exe -lgdi32
 ```
 
 ---
@@ -27,10 +27,21 @@ gcc main.c -o rdp.exe -lgdi32
 ## Usage
 
 ### Host mode
-Run this on the machine you want to control remotely:
+Run this on the machine you want to control remotely.  
+Captures a screenshot every second in a continuous loop:
 
 ```bash
 ./rdp.exe --host
+```
+
+Output example:
+```
+[HOST] Starting...
+Screenshot saved to screenshot.bmp (1536x864)
+[HOST] Frame 1 captured
+Screenshot saved to screenshot.bmp (1536x864)
+[HOST] Frame 2 captured
+...
 ```
 
 ### Client mode
@@ -40,6 +51,8 @@ Run this on the machine you want to connect from:
 ./rdp.exe --client
 ```
 
+> ⚠️ Client mode is not yet implemented.
+
 ---
 
 ## Project Structure
@@ -47,7 +60,11 @@ Run this on the machine you want to connect from:
 ```
 PhantomGate/
 ├── src/
-│   └── main.c
+│   ├── main.c        → entry point, arg parsing, host/client logic
+│   ├── capture.c     → screen capture (Win32 BitBlt)
+│   ├── capture.h     → header for capture.c
+│   ├── network.c     → Winsock networking (next milestone)
+│   └── network.h     → header for network.c
 ├── .gitignore
 └── README.md
 ```
@@ -57,6 +74,8 @@ PhantomGate/
 ## Roadmap
 
 - [x] Screen capture via Win32 BitBlt
+- [x] Continuous frame capture loop (1 fps)
+- [x] Modular source structure (capture / network split)
 - [ ] Send frames over TCP (Winsock)
 - [ ] Video encoding with FFmpeg
 - [ ] Keyboard and mouse input injection
