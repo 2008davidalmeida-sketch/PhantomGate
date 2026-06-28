@@ -173,30 +173,26 @@ SOCKET net_client_connect(const char *ip, uint16_t port) {
 //   [3]  height
 #define HEADER_FIELDS 4
 
-int net_send_frame(SOCKET sock, const unsigned char *pixels,
+int net_send_frame(SOCKET sock, const unsigned char *payload, int payload_size,
                    int width, int height) {
     
-    // Calculate row size and pixel size.
-    uint32_t row_size   = ((uint32_t)(width * 3) + 3u) & ~3u;
-    uint32_t pixel_size = row_size * (uint32_t)height;
-
     // Define the header.
     uint32_t header[HEADER_FIELDS];
     header[0] = NET_FRAME_MAGIC;
-    header[1] = pixel_size;
+    header[1] = (uint32_t)payload_size;
     header[2] = (uint32_t)width;
     header[3] = (uint32_t)height;
 
     // Check if the header was sent successfully.
     if (!send_all(sock, (unsigned char *)header, sizeof(header))) return 0;
     
-    // Check if the pixel data was sent successfully.
-    if (!send_all(sock, pixels, (int)pixel_size)) return 0;
+    // Check if the payload data was sent successfully.
+    if (!send_all(sock, payload, payload_size)) return 0;
     
     return 1;
 }
 
-unsigned char *net_recv_frame(SOCKET sock, int *out_width, int *out_height) {
+unsigned char *net_recv_frame(SOCKET sock, int *out_width, int *out_height, int *out_size) {
     
     // Receive the header.
     uint32_t header[HEADER_FIELDS];
@@ -208,36 +204,37 @@ unsigned char *net_recv_frame(SOCKET sock, int *out_width, int *out_height) {
         return NULL;
     }
 
-    // Define the pixel data length, width, and height.
-    uint32_t pixel_size = header[1];
-    int width           = (int)header[2];
-    int height          = (int)header[3];
+    // Define the payload length, width, and height.
+    uint32_t payload_size = header[1];
+    int width             = (int)header[2];
+    int height            = (int)header[3];
 
-    // Check if the pixel data length is valid.
-    if (pixel_size == 0 || pixel_size > 64u * 1024u * 1024u) {
-        fprintf(stderr, "[net] implausible frame size: %u bytes\n", pixel_size);
+    // Check if the payload length is valid.
+    if (payload_size == 0 || payload_size > 64u * 1024u * 1024u) {
+        fprintf(stderr, "[net] implausible frame size: %u bytes\n", payload_size);
         return NULL;
     }
 
-    // Allocate memory for the pixel data.
-    unsigned char *pixels = malloc(pixel_size);
-    if (!pixels) {
-        fprintf(stderr, "[net] malloc(%u) failed\n", pixel_size);
+    // Allocate memory for the payload data.
+    unsigned char *payload = malloc(payload_size);
+    if (!payload) {
+        fprintf(stderr, "[net] malloc(%u) failed\n", payload_size);
         return NULL;
     }
 
-    // Check if the pixel data was received successfully.
-    if (!recv_all(sock, pixels, (int)pixel_size)) {
-        free(pixels);
+    // Check if the payload data was received successfully.
+    if (!recv_all(sock, payload, (int)payload_size)) {
+        free(payload);
         return NULL;
     }
 
-    // Set the width and height.
+    // Set the width, height, and size.
     if (out_width)  *out_width  = width;
     if (out_height) *out_height = height;
+    if (out_size)   *out_size   = (int)payload_size;
 
-    // Return the pixel data.
-    return pixels;
+    // Return the payload data.
+    return payload;
 }
 
 // ---------------------------------------------------------------------------

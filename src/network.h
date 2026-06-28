@@ -31,15 +31,15 @@ SOCKET net_client_connect(const char *ip, uint16_t port);
 
 // Shared send / receive -------------------------------------------------------
 
-// Sends one frame (header + pixel data) over *sock*.
+// Sends one frame (header + payload data) over *sock*.
 // Returns 1 on success, 0 on failure.
-int net_send_frame(SOCKET sock, const unsigned char *pixels,
+int net_send_frame(SOCKET sock, const unsigned char *payload, int payload_size,
                    int width, int height);
 
-// Receives one frame from *sock*.  Allocates and returns a pixel buffer that
-// the caller must free().  Sets *out_width and *out_height.
+// Receives one frame from *sock*.  Allocates and returns a payload buffer that
+// the caller must free().  Sets *out_width, *out_height, and *out_size.
 // Returns NULL on error or if the connection was closed.
-unsigned char *net_recv_frame(SOCKET sock, int *out_width, int *out_height);
+unsigned char *net_recv_frame(SOCKET sock, int *out_width, int *out_height, int *out_size);
 
 // Tears down Winsock.  Call once at program exit.
 void net_cleanup(void);

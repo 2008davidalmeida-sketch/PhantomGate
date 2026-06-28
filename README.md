@@ -19,7 +19,7 @@ Navigate to the `src/` folder and compile all source files together:
 
 ```bash
 cd src
-gcc main.c capture.c network.c viewer.c -o rdp.exe -lgdi32 -lws2_32
+gcc main.c capture.c network.c viewer.c compress.c -o rdp.exe -lgdi32 -lws2_32
 ```
 
 ---

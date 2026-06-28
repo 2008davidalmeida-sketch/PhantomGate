@@ -7,6 +7,7 @@
 #include <windows.h>
 #include "capture.h"
 #include "viewer.h"
+#include "compress.h"
 
 // Target frame interval in milliseconds (~30 fps).
 #define FRAME_MS 33
@@ -48,12 +49,25 @@ static int run_host(uint16_t port) {
             continue;
         }
 
-        // Send the frame to the client.
-        if (!net_send_frame(client, pixels, width, height)) {
+        // Compress the frame.
+        int jpeg_size = 0;
+        unsigned char *jpeg_data = compress_frame_to_jpeg(pixels, width, height, 80, &jpeg_size);
+        if (!jpeg_data) {
+            fprintf(stderr, "[HOST] compress_frame_to_jpeg failed — skipping.\n");
+            free(pixels);
+            Sleep(FRAME_MS);
+            continue;
+        }
+
+        // Send the compressed frame to the client.
+        if (!net_send_frame(client, jpeg_data, jpeg_size, width, height)) {
             fprintf(stderr, "[HOST] Client disconnected.\n");
+            free(jpeg_data);
             free(pixels);
             break;
         }
+        
+        free(jpeg_data);
         free(pixels);
 
         //Update the frame count.
@@ -95,21 +109,32 @@ static int run_client(const char *ip, uint16_t port) {
     }
 
     // Receive one frame first so we know the host resolution.
-    int width = 0, height = 0;
-    unsigned char *first = net_recv_frame(sock, &width, &height);
+    int width = 0, height = 0, jpeg_size = 0;
+    unsigned char *first_jpeg = net_recv_frame(sock, &width, &height, &jpeg_size);
    
     //Check if the first frame was received.
-    if (!first) {
+    if (!first_jpeg) {
         fprintf(stderr, "[CLIENT] Failed to receive first frame.\n");
         closesocket(sock);
         net_cleanup();
         return 1;
     }
 
+    // Decompress the first frame.
+    int d_width = 0, d_height = 0;
+    unsigned char *first_pixels = decompress_jpeg_to_frame(first_jpeg, jpeg_size, &d_width, &d_height);
+    free(first_jpeg);
+    if (!first_pixels) {
+        fprintf(stderr, "[CLIENT] Failed to decompress first frame.\n");
+        closesocket(sock);
+        net_cleanup();
+        return 1;
+    }
+
     //Initialise the viewer window with the received frame.
-    viewer_init(width / 2, height / 2, "PhantomGate — connecting...");
-    viewer_render_frame(first, width, height);
-    free(first);
+    viewer_init(d_width / 2, d_height / 2, "PhantomGate — connecting...");
+    viewer_render_frame(first_pixels, d_width, d_height);
+    free(first_pixels);
 
     //Initialise frame count and start time.
     DWORD frame_count = 0;
@@ -120,16 +145,25 @@ static int run_client(const char *ip, uint16_t port) {
     while (viewer_poll_events()) {
         
         //Receive the next frame from the host.
-        unsigned char *pixels = net_recv_frame(sock, &width, &height);
+        unsigned char *jpeg_data = net_recv_frame(sock, &width, &height, &jpeg_size);
         
         //Check if the frame was received successfully.
-        if (!pixels) {
+        if (!jpeg_data) {
             printf("[CLIENT] Stream ended or connection lost.\n");
             break;
         }
 
+        // Decompress the frame.
+        int d_width = 0, d_height = 0;
+        unsigned char *pixels = decompress_jpeg_to_frame(jpeg_data, jpeg_size, &d_width, &d_height);
+        free(jpeg_data);
+        if (!pixels) {
+            fprintf(stderr, "[CLIENT] Failed to decompress frame.\n");
+            continue;
+        }
+
         //Render the received frame in the viewer window.
-        viewer_render_frame(pixels, width, height);
+        viewer_render_frame(pixels, d_width, d_height);
         free(pixels);
 
         //Increment the frame count.
